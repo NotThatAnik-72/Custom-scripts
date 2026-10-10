@@ -214,7 +214,7 @@ local function getOrEquipRod()
 end
 
 pcall(function()
-    local ReelController = ReplicatedStorage:WaitForChild("client"):WaitForChild("legacyControllers"):FindFirstChild("ReelController")
+    local ReelController = ReplicatedStorage:WaitForChild("client", 2) and ReplicatedStorage.client:WaitForChild("legacyControllers", 2) and ReplicatedStorage.client.legacyControllers:FindFirstChild("ReelController")
     if ReelController then
         local ReelModule = require(ReelController)
         if not ReelModule._OldStartReel then
@@ -237,11 +237,11 @@ pcall(function()
                     pcall(function()
                         reelInstance:WaitUntilReady()
                     end)
-                    task.wait(0.7)
+                    task.wait(0.5)
                     
                     if reelInstance and reelInstance.active then
                         reelInstance.perfect = true
-                        task.wait(0.15)
+                        task.wait(0.1)
                         pcall(function()
                             if reelInstance.EndMinigame then
                                 reelInstance:EndMinigame(true)
@@ -257,40 +257,52 @@ end)
 
 task.spawn(function()
     while true do
-        task.wait(0.01)
+        task.wait(0.05)
+        if Settings.AutoReel or Settings.AutoFish then
+            pcall(function()
+                local reelUI = PlayerGui:FindFirstChild("reel") or PlayerGui:FindFirstChild("minigame")
+                if reelUI then
+                    local remote = ReplicatedStorage:FindFirstChild("events") and ReplicatedStorage.events:FindFirstChild("reelfinished")
+                    if remote then
+                        remote:FireServer(100, true)
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.05)
         if Settings.AutoShake or Settings.AutoFish then
             pcall(function()
-                local shakeUI = PlayerGui:FindFirstChild("shakeui")
+                local shakeUI = PlayerGui:FindFirstChild("shakeui") or PlayerGui:FindFirstChild("ShakeUI")
                 if shakeUI and shakeUI.Enabled then
-                    local safeZone = shakeUI:FindFirstChild("safezone")
-                    if safeZone then
-                        local button = safeZone:FindFirstChildWhichIsA("GuiButton") or safeZone:FindFirstChildWhichIsA("ImageButton")
-                        if button then
-                            button.Visible = false
-                            local fired = false
-                            if firesignal then
-                                pcall(function() firesignal(button.Activated) fired = true end)
-                            end
-                            if not fired and getconnections then
-                                pcall(function()
-                                    for _, connection in pairs(getconnections(button.Activated)) do
-                                        connection:Fire()
-                                        fired = true
+                    for _, v in pairs(shakeUI:GetDescendants()) do
+                        if v:IsA("GuiButton") or v:IsA("ImageButton") then
+                            pcall(function()
+                                v.Visible = true
+                                if firesignal then
+                                    firesignal(v.Activated)
+                                    firesignal(v.MouseButton1Click)
+                                end
+                                if getconnections then
+                                    for _, conn in pairs(getconnections(v.Activated)) do
+                                        conn:Fire()
                                     end
-                                end)
-                            end
-                            if not fired then
-                                pcall(function()
-                                    local absPos = button.AbsolutePosition
-                                    local absSize = button.AbsoluteSize
-                                    local cx = absPos.X + absSize.X / 2
-                                    local cy = absPos.Y + absSize.Y / 2
-                                    VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
-                                    task.wait(0.02)
-                                    VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
-                                end)
-                            end
-                            task.wait(0.05)
+                                    for _, conn in pairs(getconnections(v.MouseButton1Click)) do
+                                        conn:Fire()
+                                    end
+                                end
+                                local absPos = v.AbsolutePosition
+                                local absSize = v.AbsoluteSize
+                                local cx = absPos.X + absSize.X / 2
+                                local cy = absPos.Y + absSize.Y / 2
+                                VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
+                                task.wait(0.02)
+                                VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
+                            end)
                         end
                     end
                 end
@@ -300,25 +312,26 @@ task.spawn(function()
 end)
 
 task.spawn(function()
-    local Net = ReplicatedStorage:WaitForChild("packages"):WaitForChild("Net")
-    local CastRemote = Net:WaitForChild("RF/FishingRod/Cast")
+    local Net = ReplicatedStorage:WaitForChild("packages", 5) and ReplicatedStorage.packages:WaitForChild("Net", 5)
+    local CastRemote = Net and Net:WaitForChild("RF/FishingRod/Cast", 5)
 
     while true do
-        task.wait(0.1)
+        task.wait(0.2)
         if Settings.AutoCast or Settings.AutoFish then
             pcall(function()
-                local shakeUI = PlayerGui:FindFirstChild("shakeui")
+                local shakeUI = PlayerGui:FindFirstChild("shakeui") or PlayerGui:FindFirstChild("ShakeUI")
+                local reelUI = PlayerGui:FindFirstChild("reel") or PlayerGui:FindFirstChild("minigame")
                 
-                if not (shakeUI and shakeUI.Enabled) then
+                if not (shakeUI and shakeUI.Enabled) and not reelUI then
                     local passedRod = getOrEquipRod()
                     
-                    if passedRod then
+                    if passedRod and CastRemote then
                         local isCasted = false
                         local charFolder = passedRod:FindFirstChild("char")
                         local valuesFolder = passedRod:FindFirstChild("values")
                         
                         if valuesFolder and valuesFolder:FindFirstChild("casted") then
-                            isCasted = valuesFolder.casted.Value
+                            isCasted = valuesFolder.values.casted.Value
                         elseif charFolder and #charFolder:GetChildren() > 0 then
                             isCasted = true
                         end
