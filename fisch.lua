@@ -90,7 +90,7 @@ MinimizeBtn.Font = Enum.Font.GothamBold
 MinimizeBtn.Parent = TopBar
 
 local isMinimized = false
-MinimizeBtn.MouseButton1Click:Connect(function()
+MinimizeBtn.Activated:Connect(function()
     isMinimized = not isMinimized
     local targetSize = isMinimized and UDim2.new(0, 230, 0, 40) or UDim2.new(0, 230, 0, 280)
     TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = targetSize}):Play()
@@ -154,7 +154,7 @@ local function createToggle(key, yOffset)
     buttons[key] = btn
     updateButtonVisual(key)
 
-    btn.MouseButton1Click:Connect(function()
+    btn.Activated:Connect(function()
         if key == "AutoFish" then
             syncAllButtons(not Settings.AutoFish)
         else
