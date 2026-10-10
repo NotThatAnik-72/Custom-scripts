@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
@@ -212,62 +213,88 @@ local function getOrEquipRod()
     return nil
 end
 
-local ReelController = ReplicatedStorage:WaitForChild("client"):WaitForChild("legacyControllers"):FindFirstChild("ReelController")
-if ReelController then
-    local ReelModule = require(ReelController)
-    if not ReelModule._OldStartReel then
-        ReelModule._OldStartReel = ReelModule.StartReel
-    end
+pcall(function()
+    local ReelController = ReplicatedStorage:WaitForChild("client"):WaitForChild("legacyControllers"):FindFirstChild("ReelController")
+    if ReelController then
+        local ReelModule = require(ReelController)
+        if not ReelModule._OldStartReel then
+            ReelModule._OldStartReel = ReelModule.StartReel
+        end
 
-    ReelModule.StartReel = function(minigameParams)
-        local reelInstance = ReelModule._OldStartReel(minigameParams)
-        if not reelInstance then return end
+        ReelModule.StartReel = function(minigameParams)
+            local reelInstance = ReelModule._OldStartReel(minigameParams)
+            if not reelInstance then return end
 
-        task.spawn(function()
-            if Settings.AutoReel or Settings.AutoFish then
-                while reelInstance and reelInstance.AddModifier do
-                    reelInstance:AddModifier("progress", "force", 100)
-                    task.wait()
-                end
-                
-                reelInstance:WaitUntilReady()
-                task.wait(0.7)
-                
-                if reelInstance and reelInstance.active then
-                    reelInstance.perfect = true
-                    task.wait(0.15)
-                    if reelInstance.EndMinigame then
-                        reelInstance:EndMinigame(true)
+            task.spawn(function()
+                if Settings.AutoReel or Settings.AutoFish then
+                    pcall(function()
+                        while reelInstance and reelInstance.AddModifier do
+                            reelInstance:AddModifier("progress", "force", 100)
+                            task.wait()
+                        end
+                    end)
+                    
+                    pcall(function()
+                        reelInstance:WaitUntilReady()
+                    end)
+                    task.wait(0.7)
+                    
+                    if reelInstance and reelInstance.active then
+                        reelInstance.perfect = true
+                        task.wait(0.15)
+                        pcall(function()
+                            if reelInstance.EndMinigame then
+                                reelInstance:EndMinigame(true)
+                            end
+                        end)
                     end
                 end
-            end
-        end)
-        return reelInstance
+            end)
+            return reelInstance
+        end
     end
-end
+end)
 
 task.spawn(function()
     while true do
         task.wait(0.01)
         if Settings.AutoShake or Settings.AutoFish then
-            local shakeUI = PlayerGui:FindFirstChild("shakeui")
-            if shakeUI and shakeUI.Enabled then
-                local safeZone = shakeUI:FindFirstChild("safezone")
-                if safeZone then
-                    local button = safeZone:FindFirstChildWhichIsA("GuiButton") or safeZone:FindFirstChildWhichIsA("ImageButton")
-                    if button then
-                        button.Visible = false
-                        if firesignal then
-                            firesignal(button.Activated)
-                        else
-                            for _, connection in pairs(getconnections(button.Activated)) do
-                                connection:Fire()
+            pcall(function()
+                local shakeUI = PlayerGui:FindFirstChild("shakeui")
+                if shakeUI and shakeUI.Enabled then
+                    local safeZone = shakeUI:FindFirstChild("safezone")
+                    if safeZone then
+                        local button = safeZone:FindFirstChildWhichIsA("GuiButton") or safeZone:FindFirstChildWhichIsA("ImageButton")
+                        if button then
+                            button.Visible = false
+                            local fired = false
+                            if firesignal then
+                                pcall(function() firesignal(button.Activated) fired = true end)
                             end
+                            if not fired and getconnections then
+                                pcall(function()
+                                    for _, connection in pairs(getconnections(button.Activated)) do
+                                        connection:Fire()
+                                        fired = true
+                                    end
+                                end)
+                            end
+                            if not fired then
+                                pcall(function()
+                                    local absPos = button.AbsolutePosition
+                                    local absSize = button.AbsoluteSize
+                                    local cx = absPos.X + absSize.X / 2
+                                    local cy = absPos.Y + absSize.Y / 2
+                                    VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
+                                    task.wait(0.02)
+                                    VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
+                                end)
+                            end
+                            task.wait(0.05)
                         end
-                        task.wait(0.05)
                     end
                 end
-            end
+            end)
         end
     end
 end)
@@ -279,30 +306,32 @@ task.spawn(function()
     while true do
         task.wait(0.1)
         if Settings.AutoCast or Settings.AutoFish then
-            local shakeUI = PlayerGui:FindFirstChild("shakeui")
-            
-            if not (shakeUI and shakeUI.Enabled) then
-                local passedRod = getOrEquipRod()
+            pcall(function()
+                local shakeUI = PlayerGui:FindFirstChild("shakeui")
                 
-                if passedRod then
-                    local isCasted = false
-                    local charFolder = passedRod:FindFirstChild("char")
-                    local valuesFolder = passedRod:FindFirstChild("values")
+                if not (shakeUI and shakeUI.Enabled) then
+                    local passedRod = getOrEquipRod()
                     
-                    if valuesFolder and valuesFolder:FindFirstChild("casted") then
-                        isCasted = valuesFolder.casted.Value
-                    elseif charFolder and #charFolder:GetChildren() > 0 then
-                        isCasted = true
-                    end
+                    if passedRod then
+                        local isCasted = false
+                        local charFolder = passedRod:FindFirstChild("char")
+                        local valuesFolder = passedRod:FindFirstChild("values")
+                        
+                        if valuesFolder and valuesFolder:FindFirstChild("casted") then
+                            isCasted = valuesFolder.casted.Value
+                        elseif charFolder and #charFolder:GetChildren() > 0 then
+                            isCasted = true
+                        end
 
-                    if not isCasted then
-                        pcall(function()
-                            CastRemote:InvokeServer(100, true)
-                        end)
-                        task.wait(0.5)
+                        if not isCasted then
+                            pcall(function()
+                                CastRemote:InvokeServer(100, true)
+                            end)
+                            task.wait(0.5)
+                        end
                     end
                 end
-            end
+            end)
         end
     end
 end)
